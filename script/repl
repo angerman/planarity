@@ -1,0 +1,48 @@
+#!/bin/sh
+CLASSPATH=src:test:config:data:.
+
+
+# # incanter, should include clojure
+# for f in ../incanter/lib/*.jar; do
+#     CLASSPATH=$CLASSPATH:$f
+# done
+
+# for f in ../incanter/lib/dev/*.jar; do
+#     CLASSPATH=$CLASSPATH:$f
+# done
+
+# # jreality
+# CLASSPATH=$CLASSPATH:../jreality/jReality.jar
+# for f in ../jreality/lib/*.jar; do
+#     CLASSPATH=$CLASSPATH:$f
+# done
+
+# # jogl
+# for f in ../jogl-1.1.1-macosx-universal/lib/*.jar; do
+#     CLASSPATH=$CLASSPATH:$f
+# done
+
+for f in lib/*.jar; do
+    CLASSPATH=$CLASSPATH:$f
+done
+
+for f in jogl-1.1.1-macosx-universal/lib/*.jar; do
+    CLASSPATH=$CLASSPATH:$f
+done
+
+#CLASSPATH=ParallelColt/parallelcolt-0.9.4.jar:$CLASSPATH
+
+#for f in ParallelColt/lib/*.jar; do
+#    CLASSPATH=$CLASSPATH:$f
+#done
+
+CLASSPATH=jr-3rd-party/lib/jrworkspace.jar:$CLASSPATH
+CLASSPATH=jr-3rd-party/lib/xstream.jar:$CLASSPATH
+CLASSPATH=jr-3rd-party/lib/beans.jar:$CLASSPATH
+CLASSPATH=jr-3rd-party/lib/bsh.jar:$CLASSPATH
+CLASSPATH=jr-3rd-party/lib/jterm.jar:$CLASSPATH
+
+LIBPATH=jogl-1.1.1-macosx-universal/lib:jr-jni
+
+#echo $CLASSPATH
+java -Xmx1G -cp $CLASSPATH -Djava.library.path=$LIBPATH jline.ConsoleRunner clojure.main $1
