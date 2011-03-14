@@ -20,10 +20,10 @@ will perform/attempt a planar subdivision on a few objects.
 
 ## Installation
 
-It is strongly suggested that
-[Leiningen][https://github.com/technomancy/leiningen] is used.
+It is strongly suggested that [Leiningen](https://github.com/technomancy/leiningen) is used.
 
 `$ lein deps`
+
 `$ lein native-deps`
 
 should be sufficient to install all required dependencies. (JReality,...)
