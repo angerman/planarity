@@ -8,7 +8,7 @@
 (def *temp:dir*         "~/temp")
 
 (defn header []
-  "\\being{tikzpicture}")
+  "\\begin{tikzpicture}")
 
 (defn footer []
   "\\end{tikzpicture}")
@@ -17,7 +17,7 @@
   ((comp (partial str/join "\n") list)
    "\\documentclass{article}"
    "\\usepackage{tikz,nicefrac,amsmath,pifont}"
-   "\\usetikzlibrary{arrows,decorations,background,patterns,matrix,shapes,fit,calc,shadows,plotmarks,intersections}"
+   "\\usetikzlibrary{arrows,decorations,backgrounds,patterns,matrix,shapes,fit,calc,shadows,plotmarks,intersections}"
    "\\usepackage[graphics,tightpage,active]{preview}"
    "\\PreviewEnvironment{tikzpicture}"
    "\\newlength{\\imagewidth}"
@@ -28,7 +28,7 @@
   "\\end{document}")
 
 (defn temp-file [file-name]
-  (str/join File/separator *temp:dir* file-name))
+  (str/join File/separator [*temp:dir* file-name]))
 
 (defn resolve-file [file-str]
   (let [#^String s (str file-str)
