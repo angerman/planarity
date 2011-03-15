@@ -1,6 +1,6 @@
 (ns geometry.renderer
   (:use [incanter.core :only ($= matrix bind-columns trans)])
-  (:use [geometry :only (with-geometry get-nodes get-edges get-vertices get-vertex)])
+  (:use [geometry :only (with-geometry get-nodes get-edges get-vertices get-vertex get-faces)])
   (:use [geometry.utils :only (unit-vec skew-mat norm centroid)])
   (:use [clojure.string :only (join)]))
 
@@ -42,7 +42,7 @@
   Face
   (depth  [f] (geometry.utils/avg (:depths f)))
   (render [f] (format "\\fill[black!%d] %s -- cycle;\n"
-                      (max 0 (min 100 (Math/round (* 100 (depth f)))))
+                      (max 0 (min 80 (Math/round (* 80 (depth f)))))
                       (join " -- " (map #(format "(node-%d)" %) (:nodes f))))))
 
 (defn make-node [x y]
@@ -108,6 +108,7 @@
               edges     (for [[a b] (get-edges)] (Edge. (:id (n->tikz-n a))
                                                         (:id (n->tikz-n b))
                                                         (n->depth a)
-                                                        (n->depth b)))]
+                                                        (n->depth b)))
+              faces     (for [face (get-faces)] (Face. (map #(:id (n->tikz-n %)) face) (map n->depth face)))]
           (doall
-           (map render (concat (vals n->tikz-n) (sort-by depth (concat points edges))))))))))
+           (map render (concat (vals n->tikz-n) (sort-by depth (concat points edges faces))))))))))

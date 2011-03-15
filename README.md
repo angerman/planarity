@@ -40,7 +40,7 @@ adjusted in `tikz.clj`.
 
 ## Installation
 
-It is strongly suggested that [Leiningen](https://github.com/technomancy/leiningen) is used.
+It is strongly recommended that [Leiningen](https://github.com/technomancy/leiningen) is used.
 
 `$ lein deps`
 
