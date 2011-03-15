@@ -12,6 +12,8 @@
   (set-offset    [geom coords] "Sets the geometry offset to coords")
   (reset-offset  [geom] "Sets the geometry offset to nil.")
 
+  (shrink-counter [geom] "Sets the counter to the largest element in nodes.")
+  
   (nodes         [geom])
   (add-node      [geom] "Adds a new node to the geometry and returns the node id.")
   (remove-node   [geom node-id] "Removes the node with the given id.")
@@ -40,6 +42,8 @@
   (offset     [_] offset)
   (set-offset [_ coords] (set! offset coords) coords)
   (reset-offset [_] (set! offset nil))
+
+  (shrink-counter [_] (swap! node-counter (fn [_] (apply max nodes))))
   
   (nodes      [_] nodes)
   (add-node   [_] (let [node (swap! node-counter inc)]

@@ -6,6 +6,10 @@
 
 ;;------------------------------------------------------------------------------
 ;; slightly more advanced renderer (than the previous one)
+;;
+;; TODO
+;; - faces
+;; - lighting 
 
 (def *node-counter*)
 (defn next-id []
