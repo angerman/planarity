@@ -183,11 +183,16 @@
 
 
 (defn planar-subd-compute-qs [tp E q1]
-  (let [q2 (planar-dual/project-onto-plane ($= (M (:c tp)) <*> (M (:b tp)) <*> q1) E)
-        q3 (planar-dual/project-onto-plane ($= (M (:i tp)) <*> (M (:f tp)) <*> q2) E)
-        q4 (planar-dual/project-onto-plane ($= (M (:g tp)) <*> (M (:h tp)) <*> q3) E)
-        q5 (planar-dual/project-onto-plane ($= (M (:a tp)) <*> (M (:d tp)) <*> q4) E)]
-    [q2 q3 q4 q5]))
+  (cond 
+   (nil? q1) (prn "Invalid q1")
+   (nil? E) (prn "Invalid E")
+   (not (and (:a tp) (:b tp) (:c tp) (:d tp) (:f tp) (:g tp) (:h tp) (:i tp))) (prn "Not all lines are available!")
+   :else
+   (let [q2 (planar-dual/project-onto-plane ($= (M (:c tp)) <*> (M (:b tp)) <*> q1) E)
+         q3 (planar-dual/project-onto-plane ($= (M (:i tp)) <*> (M (:f tp)) <*> q2) E)
+         q4 (planar-dual/project-onto-plane ($= (M (:g tp)) <*> (M (:h tp)) <*> q3) E)
+         q5 (planar-dual/project-onto-plane ($= (M (:a tp)) <*> (M (:d tp)) <*> q4) E)]
+     [q2 q3 q4 q5])))
 
 (defn planar-subd-compute-face-points [struct face]
   (let [c (apply centroid (map geometry/get-vertex (planar-subd-face-boundary struct face)))
@@ -207,7 +212,8 @@
               ;; check for `nil` in backups
               ;; backup-options (filter identity [backup-q1])
               boundary-length (polygon-length vboundary)
-              configurations (map (partial planar-subd-compute-qs tp E) q1-options)]
+              configurations (filter (complement nil?)
+                                     (map (partial planar-subd-compute-qs tp E) q1-options))]
           (if-let [configuration (select-fixed-point vboundary configurations)]
             (planar-subd-add-points-and-faces boundary (cons (last configuration) (butlast configuration)))
             (do ;; else
