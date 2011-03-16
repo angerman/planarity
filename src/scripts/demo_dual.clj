@@ -97,7 +97,7 @@
         ;; now there are possibly multiple configurations for q1 to
         ;; q4. We will gather all of them and then use some quality
         ;; function to determine which is the ``beste'' solution.
-        (let [configurations (map (partial planar-subd-compute-qs struct E) q1-options)]
+        (let [configurations (filter (complement nil?) (map (partial planar-subd-compute-qs struct E) q1-options))]
           ;; with the set of configurations we will use the
           ;; select-fixed-point function to select the best solution.
           ;;
