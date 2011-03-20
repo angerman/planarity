@@ -27,6 +27,7 @@
 (defprotocol TikZRenderer
   (render [_] "TikZ representation.")
   (depth  [_] "Computes the average depth.")
+  (color [_])
   (min-depth [_])
   (max-depth [_]))
 
@@ -36,26 +37,35 @@
      ~@body))
 
 
+(def *point-color* 'black)
+(def *edge-color* 'black)
+(def *face-color* 'black)
+
 (extend-protocol TikZRenderer
   Node
-  (render [n] (format "\\coordinate (node-%d) at (%+2.4f,%+2.4f);\n" (:id n) (float (:x n)) (float (:y n))))
+  (render [n] (format "\\coordinate (node-%d) at (%+2.4f,%+2.4f);" (:id n) (float (:x n)) (float (:y n))))
   Point
   (depth  [p] (:depth p))
   (min-depth [p] (:depth p))
   (max-depth [p] (:depth p))
-  (render [p] (format "\\fill[black!%d] (node-%d) circle (1.5pt);\n" (max 0 (min 100 (Math/round (* 100 (:depth p))))) (:node p)))
+  (color [p] (str (or (:color (meta p)) *point-color*)))
+  (render [p] (format "\\fill[%s!%d] (node-%d) circle (1.5pt);" (color p) (max 0 (min 100 (Math/round (* 100 (:depth p))))) (:node p)))
   Edge
   (depth  [e] (geometry.utils/avg (:depth-a e) (:depth-b e)))
   (min-depth [e] (min (:depth-a e) (:depth-b e)))
   (max-depth [e] (max (:depth-a e) (:depth-b e)))
-  (render [e] (format "\\draw[black!%d] (node-%d) -- (node-%d);\n"
+  (color [e] (str (or (:color (meta e)) *edge-color*)))  
+  (render [e] (format "\\draw[%s!%d] (node-%d) -- (node-%d);"
+                      (color e)
                       (max 0 (min 100 (Math/round (* 100 (depth e)))))
                       (:node-a e) (:node-b e)))
   Face
   (depth  [f] (geometry.utils/avg (:depths f)))
   (min-depth [f] (apply min (:depths f)))
   (max-depth [f] (apply max (:depths f)))
-  (render [f] (format "\\fill[black!%d] %s -- cycle;\n"
+  (color [f] (str (or (:color (meta f)) *face-color*)))
+  (render [f] (format "\\fill[%s!%d] %s -- cycle;"
+                      (color f)
                       (max 0 (min 80 (Math/round (* 80 (depth f)))))
                       (join " -- " (map #(format "(node-%d)" %) (:nodes f))))))
 
@@ -164,16 +174,21 @@
       (with-counter
         (let [n->tikz-n (reduce merge (for [n (get-nodes)] {n (apply make-node (n->xy n))}))
               points    (if points
-                          (for [n (get-nodes)] (Point. (:id (n->tikz-n n)) (n->depth n))))
+                          (for [n (get-nodes)] (with-meta (Point. (:id (n->tikz-n n)) (n->depth n))
+                                                 (meta n))))
               edges     (if edges
-                          (for [[a b] (get-edges)] (Edge. (:id (n->tikz-n a))
-                                                          (:id (n->tikz-n b))
-                                                          (n->depth a)
-                                                          (n->depth b))))
+                          (for [e (get-edges)]
+                            (let [[a b] e] (with-meta (Edge. (:id (n->tikz-n a))
+                                                             (:id (n->tikz-n b))
+                                                             (n->depth a)
+                                                             (n->depth b))
+                                             (meta e)))))
               faces     (if faces
                           (for [face (get-faces)]
                             (let [light (lighting face)]
-                              (Face. (map #(:id (n->tikz-n %)) face)
-                                     (map #(* (- 1.0 light) (n->depth %)) face)))))]
+                              (with-meta
+                                (Face. (map #(:id (n->tikz-n %)) face)
+                                       (map #(* (- 1.0 light) (n->depth %)) face))
+                                (meta face)))))]
           (doall
            (map render (concat (vals n->tikz-n) (sort (comparator depth-comp) (concat points edges faces))))))))))

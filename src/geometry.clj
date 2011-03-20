@@ -25,7 +25,7 @@
   (remove-vertex [geom node-id])
 
   (edges      [geom])
-  (add-edge   [geom [a b]])
+  (add-edge   [geom e])
   (remove-edge [geom [a b]])
 
   (faces    [geom])
@@ -63,7 +63,7 @@
   (remove-vertex [_ node] (set! vertices (dissoc vertices node)))
   
   (edges    [_] edges)
-  (add-edge [_ [a b]] (set! edges (conj edges `(~a ~b))) `(~a ~b))
+  (add-edge [_ e] (set! edges (conj edges e)) e)
   (remove-edge [_ [a b]] (set! edges (disj edges `(~a ~b))))
   
   (faces    [_] faces)
@@ -129,11 +129,11 @@
 ;; edges
 (defn get-edges [] (.edges *geometry*))
 (defn add-directed-edge
-  ([[a b]] (.add-edge *geometry* `(~a ~b)))
+  ([e] (let [[a b] e] (.add-edge *geometry* (with-meta `(~a ~b) (meta e)))))
   ([a b] (add-directed-edge [a b])))
 
 (defn add-edge
-  ([[a b]] (add-directed-edge `(~(min a b) ~(max a b))))
+  ([e] (let [[a b] e] (add-directed-edge (with-meta `(~(min a b) ~(max a b)) (meta e)))))
   ([a b] (add-edge [a b])))
 
 (defn remove-directed-edge
