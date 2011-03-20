@@ -6,7 +6,7 @@
                                skew-mat centroid norm unit-vec parrallel? convex?
                                planar-arc
                                quad-area polygon-length avg)])
-  (:use [incanter.core :only ($= decomp-eigenvalue abs trans bind-columns)])
+  (:use [incanter.core :only ($= decomp-eigenvalue abs trans bind-columns to-list)])
   (:use [clojure.contrib.generic.math-functions :only (approx=)])
   (:use [clojure.contrib.seq-utils :only (indexed)])
   (:use [clojure.contrib.duck-streams :only (with-out-writer)])
@@ -206,8 +206,11 @@
    (map #(format "%+2.2f°" (float %)))
    (join " ")))
 
-(defn analyze-planar-only-D [[p1 p2 p3 p4 p5 p6 p7 p8 p9 p10 p11 p12] [q1 q2 q3 q4]]
-  (format "%+2.2f°" (float (planar-arc [p12 q1 q4 p11]))))
+(defn planar-defect [[p1 p2 p3 p4 p5 p6 p7 p8 p9 p10 p11 p12] [q1 q2 q3 q4]]
+  (float (planar-arc [p12 q1 q4 p11])))
+
+(defn analyze-planar-only-D [boundary sol]
+  (format "%+2.2f°" (planar-defect boundary sol)))
 
 (defn solve
   "Takes the boundary p1,...,p12 and the supporting hyperplane of E,
@@ -234,9 +237,11 @@
 ;;        (prn (bind-columns a d g h i f c b))
         (if-let [evs (analyze-eigensystem eigensys)]
           (let [in-E (fn [pt] (project-onto-plane pt E))
+                perp-E? (fn [pt] (approx= ($= (trans E) <*> pt) 0.0 1E-16))
                 q2 (fn [q1] (in-E ($= (pt-mat c b) <*> q1)))
                 q3 (fn [q1] (in-E ($= (pt-mat i f c b) <*> q1)))
                 q4 (fn [q1] (in-E ($= (pt-mat g h i f c b) <*> q1)))
+                self (fn [q1] ($= (pt-mat a d g h i f c b) <*> q1))
                 solution (fn [q1] (with-meta [(in-E q1) (q2 q1) (q3 q1) (q4 q1)]
                                    (meta q1)))
                 b-length (polygon-length boundary)
@@ -253,27 +258,32 @@
                                "\\")
                              (str (:line (meta evs)))))
             ;(prn (unit-vec ($= (in-E (second evs)) - (in-E (first evs)))))
-            ;(prn (line-solution-dir (last boundary) (first boundary) (second boundary) E))
-            (let [solutions (if (:line (meta evs))
-                              (let [solutions (map solution (line-solution boundary E))]
-                                (plot-solutions boundary b-length b-area solutions)
-                                (filter-peaks solutions))
-                              (map solution evs))
+            ;(prn (line-solution-dir (last boundary) (first boundary)
+                                        ;(secondboundary) E))
+            (let [solutions (concat (if (:line (meta evs))
+                                      (let [solutions (map solution (line-solution boundary E))]
+                                        (plot-solutions boundary b-length b-area solutions)
+                                        (filter-peaks solutions)))
+                                    (map solution (filter (complement perp-E?) evs)))
                   yes-no-str #(if % "Yes" "No")]
-              (println "Solution | Convex? | < Length | < Area |   Length |     Area | Face D Planar Defect ")
+              (println "Sol. | Convex | < Length | < Area |   Length |     Area | Score | Planar Defect | PD ")
               (doseq [[i s] (indexed solutions)]
-                (println (format "%8d | %7s | %8s | %6s | %7.2f%% | %7.2f%% | %s" (inc i) (yes-no-str (convex? s))
+                (println (format "%4d | %6s | %8s | %6s | %7.2f%% | %7.2f%% | %5.2f | %13s | %s" (inc i) (yes-no-str (convex? s))
                                  (yes-no-str (smaller-length s))
                                  (yes-no-str (smaller-area s))
                                  (float (/ (polygon-length s) b-length 1/100))
                                  (float (/ (quad-area s) b-area 1/100))
-                                 (analyze-planar-only-D boundary s))))
-              (->> solutions
-                   ;(filter convex?)
-                   (filter smaller-length)
-                   (filter smaller-area)
-                   (sort-by quad-area)
-                   (last))))
+                                 (float (solution-quality s))
+                                 (analyze-planar-only-D boundary s)
+                                 (yes-no-str (complement (approx= (planar-defect boundary s) 0.0 1E-12))))))
+              (let [planar-defect-filter (fn [s] (approx= (planar-defect boundary s) 0.0 1E-12))]
+                (->> solutions
+                     ;(filter convex?)
+                     (filter smaller-length)
+                     (filter smaller-area)
+                     (filter planar-defect-filter)
+                     (sort-by quad-area)
+                     (last)))))
           ;; else
           (do
             (println "ERROR: Eigensystem posesses no solution.")

@@ -1,13 +1,16 @@
 (ns geometry.subdivision.planar
-  (:use [geometry :only (add-vertex get-vertex)])
+  (:require [tikz :as t])
+  (:use [geometry :only (add-vertex get-vertex add-edge remove-edge get-edges)])
   (:use [geometry.utils :only (centroid edges-for-vertex face-to-directed-edges edge quad-area polygon-length
                                         is-convex? parrallel? face-to-edges unit-vec skew-mat norm
                                         plane line-plane-intersection line-through-points planar? planar-dist)])
+  (:use [geometry.renderer :only (render-geometry)])
   (:use [planar-dual :only (M)])
   (:use [clojure.contrib.generic.math-functions :only (approx=)])
   (:use [incanter.core :only ($= trans)])
   (:use [clojure.contrib.duck-streams :only (with-out-writer)])
-  (:use [planar.dual-solver :only (solve with-face)]))
+  (:use [planar.dual-solver :only (solve with-face)])
+  (:use [clojure.string :only (join)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Planar SubD
@@ -20,8 +23,8 @@
 (def *use-backup* true)
 
 ;; the weights for the vertex repositioning.
-(def *vertex-weight* 1/2)
-(def *centroid-weight* 1/2)
+(def *vertex-weight* 1/3)
+(def *centroid-weight* 2/3)
 
 (defn planar-subd-edge-points []
   {:vertices (set (reduce concat (geometry/get-edges)))
@@ -220,6 +223,22 @@
        (println (format "Diff. of q1 to q5: %2.4e" (norm ($= q5 - q1)))))
      [q2 q3 q4 q5])))
 
+
+(defn render-geom-highlight-face [boundary face]
+  (let [edges (face-to-edges boundary)]
+    (doseq [edge edges]
+      (remove-edge edge)
+      (add-edge (with-meta edge {:color 'red})))
+    (with-out-writer (str "/Users/angerman/Dropbox/DA/geom-face-" (join "-" face) ".tikz")
+      (println (t/header))
+      (doseq [line (render-geometry geometry/*geometry* [5 6 4] [0 0 1] 1.0 13.0 :magnify 15.0 :faces false :edges true :points false)]
+        (println line))
+      (println (t/footer)))
+    (println (format "Wrote geom-face-%s.tikz" (join "-" face)))
+    (doseq [edge edges]
+      (remove-edge edge)
+      (add-edge edge))))
+
 (defn planar-subd-compute-face-points [struct face]
   (let [c (apply centroid (map geometry/get-vertex (planar-subd-face-boundary struct face)))
         dir (planar-subd-compute-plane-orientation-for-face struct face)]
@@ -228,6 +247,7 @@
     (let [E (planar-subd-compute-E struct face)
           boundary (planar-subd-face-boundary struct face)
           vboundary (map geometry/get-vertex boundary)]
+      (render-geom-highlight-face boundary face)
       (with-face face
         (if-let [sol (solve vboundary E)]
           (if (planar-solution? vboundary sol)
