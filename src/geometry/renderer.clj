@@ -1,7 +1,7 @@
 (ns geometry.renderer
   (:use [incanter.core :only ($= matrix bind-columns trans)])
   (:use [geometry :only (with-geometry get-nodes get-edges get-vertices get-vertex get-faces)])
-  (:use [geometry.utils :only (unit-vec skew-mat norm centroid avg)])
+  (:use [geometry.utils :only (unit-vec skew-mat norm centroid avg cross-prod)])
   (:use [clojure.string :only (join)]))
 
 ;;------------------------------------------------------------------------------
@@ -71,13 +71,6 @@
 (defn make-face [nds dps]
   (Face. nds dps))
 
-
-(defn cross-prod [[a b c] [d e f]]
-  ;; this could also be accomplished
-  ;; with the skew-mat fn.
-  [(- (* b f) (* c e))
-   (+ (* a f) (* c d))
-   (- (* a e) (* b d))])
 
 (defn rot-mat [x y z]
   (bind-columns [1 0 0 0]

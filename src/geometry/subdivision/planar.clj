@@ -1,12 +1,13 @@
 (ns geometry.subdivision.planar
-  (:use [geometry :only (add-vertex)])
+  (:use [geometry :only (add-vertex get-vertex)])
   (:use [geometry.utils :only (centroid edges-for-vertex face-to-directed-edges edge quad-area polygon-length
                                         is-convex? parrallel? face-to-edges unit-vec skew-mat norm
-                                        plane line-plane-intersection line-through-points)])
+                                        plane line-plane-intersection line-through-points planar? planar-dist)])
   (:use [planar-dual :only (M)])
   (:use [clojure.contrib.generic.math-functions :only (approx=)])
   (:use [incanter.core :only ($= trans)])
-  (:use [clojure.contrib.duck-streams :only (with-out-writer)]))
+  (:use [clojure.contrib.duck-streams :only (with-out-writer)])
+  (:use [planar.dual-solver :only (solve with-face)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Planar SubD
@@ -92,7 +93,8 @@
                   (cons (first point) acc)
                   acc)]
         (if (empty? (rest points))
-          acc
+          (do (println (format "Fount %d peaks." (count acc)))
+            acc)
           (recur (rest points) point (first points) acc))))))
 
 ;; function takes the boundary (vertices)
@@ -162,24 +164,46 @@
           (solve-fn)
           (quality)))))
 
+(defn planar-solution? [[p1 p2 p3 p4 p5 p6 p7 p8 p9 p10 p11 p12] [q1 q2 q3 q4]]
+  #_(prn (map (juxt planar-dist planar?) [[p1 p2 q1 p12]
+                                        [p2 p3 q2 q1]
+                                        [p3 p4 p5 q2]
+                                        [p12 q1 q4 p11]
+                                        [q1 q2 q3 q4]
+                                        [q2 p5 p6 q3]
+                                        [p11 q4 p9 p10]
+                                        [q4 q3 p8 p9]
+                                        [q3 p6 p7 p8]]))
+  (every? planar? [[p1 p2 q1 p12]
+                   [p2 p3 q2 q1]
+                   [p3 p4 p5 q2]
+                   [p12 q1 q4 p11]
+                   [q1 q2 q3 q4]
+                   [q2 p5 p6 q3]
+                   [p11 q4 p9 p10]
+                   [q4 q3 p8 p9]
+                   [q3 p6 p7 p8]]))
+
 (defn planar-subd-add-points-and-faces [[p1 p2 p3 p4 p5 p6 p7 p8 p9 p10 p11 p12] points]
   ;; add new vertices
   (let [[q1 q2 q3 q4] (map #(apply add-vertex %) points)]
-    (->> (for [[a b c d] [[p1 p2 q1 p12]
-                          [p2 p3 q2 q1]
-                          [p3 p4 p5 q2]
-                          [p12 q1 q4 p11]
-                          [q1 q2 q3 q4]
-                          [q2 p5 p6 q3]
-                          [p11 q4 p9 p10]
-                          [q4 q3 p8 p9]
-                          [q3 p6 p7 p8]]]
-           (geometry/add-face a b c d))
-         (map face-to-edges)
-         (apply concat)
-         (set)
-         (map (partial apply geometry/add-edge))
-         (doall))))
+    (if (planar-solution? (map get-vertex [p1 p2 p3 p4 p5 p6 p7 p8 p9 p10 p11 p12]) points)
+      (->> (for [[a b c d] [[p1 p2 q1 p12]
+                            [p2 p3 q2 q1]
+                            [p3 p4 p5 q2]
+                            [p12 q1 q4 p11]
+                            [q1 q2 q3 q4]
+                            [q2 p5 p6 q3]
+                            [p11 q4 p9 p10]
+                            [q4 q3 p8 p9]
+                            [q3 p6 p7 p8]]]
+             (geometry/add-face a b c d))
+           (map face-to-edges)
+           (apply concat)
+           (set)
+           (map (partial apply geometry/add-edge))
+           (doall))
+      (println "[ E R R O R ] Solution does not generate planar faces!"))))
 
 
 (defn planar-subd-compute-qs [tp E q1]
@@ -192,38 +216,24 @@
          q3 (planar-dual/project-onto-plane ($= (M (:i tp)) <*> (M (:f tp)) <*> q2) E)
          q4 (planar-dual/project-onto-plane ($= (M (:g tp)) <*> (M (:h tp)) <*> q3) E)
          q5 (planar-dual/project-onto-plane ($= (M (:a tp)) <*> (M (:d tp)) <*> q4) E)]
+     (if-not (approx= 0.0 (norm ($= q5 - q1)) 1E-13)
+       (println (format "Diff. of q1 to q5: %2.4e" (norm ($= q5 - q1)))))
      [q2 q3 q4 q5])))
 
 (defn planar-subd-compute-face-points [struct face]
   (let [c (apply centroid (map geometry/get-vertex (planar-subd-face-boundary struct face)))
         dir (planar-subd-compute-plane-orientation-for-face struct face)]
-    (geometry/set-offset ($= c - ( 10 * dir )))
+    ;(prn ($= c + (2 * dir)))
+    ;(geometry/set-offset ($= c + ( 2 * dir )))
     (let [E (planar-subd-compute-E struct face)
           boundary (planar-subd-face-boundary struct face)
           vboundary (map geometry/get-vertex boundary)]
-      (if-let [tp (planar-dual/find-first E vboundary)]
-        ;; either choose the backup options range
-        ;; if the solution space is 1dimensional
-        ;; or choose the fixed points.
-        (let [q1-options (or (and *use-backup*
-                                  (:equal (meta (:q1 tp)))
-                                  (planar-subd-compute-backup-range-pure vboundary E))
-                             (filter #($= (trans (:a tp)) <*> %) (:q1 tp)))
-              ;; check for `nil` in backups
-              ;; backup-options (filter identity [backup-q1])
-              boundary-length (polygon-length vboundary)
-              configurations (filter (complement nil?)
-                                     (map (partial planar-subd-compute-qs tp E) q1-options))]
-          (if-let [configuration (select-fixed-point vboundary configurations)]
-            (planar-subd-add-points-and-faces boundary (cons (last configuration) (butlast configuration)))
-            (do ;; else
-              (println
-               (apply format "[!! ERROR !!] No configuration found for face %s (EV: %+2.10e; %+2.10e)" (str face) (:evs (meta (:q1 tp)))))
-              #_(if (:equal (meta (:q1 tp)))
-                (with-out-writer (format "/Users/angerman/Dropbox/DA/faces/face-%d.tikz" (swap! *counter* inc))
-                  (planar-subd-graph-for-face struct face))))))
-        (prn "ERROR! Could not find first Q1!")))
-    (geometry/reset-offset)))
+      (with-face face
+        (if-let [sol (solve vboundary E)]
+          (if (planar-solution? vboundary sol)
+            (planar-subd-add-points-and-faces boundary sol)))))
+    ;(geometry/reset-offset)
+    ))
 
 
 (defn planar-subd []
@@ -232,8 +242,11 @@
     (def *ps ps)
     (def *faces faces)
     (planar-subd-adjust-vertices ps)
-    (doseq [face faces]
-      (planar-subd-compute-face-points ps face)
-      (apply geometry/remove-face face)
-      (doseq [[a b] (face-to-edges face)]
-        (geometry/remove-edge a b)))))
+    (let [center (apply centroid (vals (geometry/get-vertices)))]
+      (doseq [face faces]
+        (geometry/set-offset center)
+        (planar-subd-compute-face-points ps face)
+        (geometry/reset-offset)
+        (apply geometry/remove-face face)
+        (doseq [[a b] (face-to-edges face)]
+          (geometry/remove-edge a b))))))

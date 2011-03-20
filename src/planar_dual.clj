@@ -1,6 +1,6 @@
 (ns planar-dual
   (:use [jreality :only (show add-drag-fn sgc quad-mesh)])
-  (:use [pq4 :only (init-mesh reset-mesh update-mesh simple-drag)])
+  ;(:use [pq4 :only (init-mesh reset-mesh update-mesh simple-drag)])
   (:use [geometry :only (add-vertex set-vertex add-edge into-edgeset-factory)])
   (:use [geometry.utils :only (plane unit-vec skew-mat)])
   (:use [incanter.core :only (abs $= matrix solve trans decomp-eigenvalue)])
@@ -10,48 +10,10 @@
 
 (def mesh)
 (declare -mesh)
-(defn update [] (update-mesh -mesh mesh))
-(defn reset [] (reset-mesh mesh))
-
-(defn -main []
-  (def *mesh-size* 4)
-  (def mesh (init-mesh *mesh-size*))
-  (geometry/reset-geom)
-  (def q1a (add-vertex 0 0 0))
-  (def q1b (add-vertex 0 0 0))
-  (def q2a (add-vertex 0 0 0))
-  (def q2b (add-vertex 0 0 0))
-  (def q3a (add-vertex 0 0 0))
-  (def q3b (add-vertex 0 0 0))
-  (def q4a (add-vertex 0 0 0))
-  (def q4b (add-vertex 0 0 0))
-;;  (add-edge q1a q1b)
-;;  (add-edge q2a q2b)
-;;  (add-edge q3a q3b)
-;;  (add-edge q4a q4b)
-  (add-edge q1a q2a)
-  (add-edge q2a q3a)
-  (add-edge q3a q4a)
-  (add-edge q4a q1a)
-  
-  (add-edge q1b q2b)
-  (add-edge q2b q3b)
-  (add-edge q3b q4b)
-  (add-edge q4b q1b)
+;(defn update [] (update-mesh -mesh mesh))
+;(defn reset [] (reset-mesh mesh))
 
 
-  
-  (let [-mesh (quad-mesh @mesh)]
-    (def iesf (de.jreality.geometry.IndexedLineSetFactory.))
-    (into-edgeset-factory iesf)
-    (def *qf* -mesh)
-    (let [update-fn (partial update-mesh -mesh)
-          cmp (sgc nil)]
-      (.addChild cmp 
-                 (-> (sgc -mesh)
-                     (add-drag-fn (partial simple-drag mesh update-fn))))
-      (.addChild cmp (sgc iesf))
-      (show cmp))))
 
 (def *p1*); []  (get-in @mesh [0 0])
 (def *p2*); []  (get-in @mesh [1 0])
@@ -200,12 +162,6 @@
                        (project-onto-plane ($= q4 <*> q1) *E*)))
          (find-q1))))
 
-(defn update-vertices []
-  (doseq [[n coord] (partition 2 (interleave [q1a q2a q3a q4a] (first (find-all))))]
-    (apply set-vertex n coord))
-  (doseq [[n coord] (partition 2 (interleave [q1b q2b q3b q4b] (second (find-all))))]
-    (apply set-vertex n coord))
-  (into-edgeset-factory iesf))
 
 (defn new-e []
   (let [A (unit-vec (A))

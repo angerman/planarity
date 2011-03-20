@@ -48,7 +48,10 @@
   (sqrt ($= (trans v) <*> v)))
 
 (defn unit-vec [v]
-  ($= v / (norm v)))
+  (let [l (norm v)]
+    (if (> l 0)
+      ($= v / l)
+      v)))
 
 (defn neg [x] (* -1 x))
 
@@ -57,10 +60,32 @@
            [ z  0 (neg x)]
            [(neg y)  x  0]]))
 
+(defn cross-prod
+  "Computes the cross-product of two vectors."
+  [[a b c] [d e f]]
+  [(- (* b f) (* c e))
+   (- (* c d) (* a f))
+   (- (* a e) (* b d))])
+
 (defn parrallel? [v1 v2]
+  "Predicate that yields true if both vectors are parallel (or anti-parrallel)."
   (let [uv1 (unit-vec v1)
         uv2 (unit-vec v2)]
-    (approx= (abs ($= (trans uv1) <*> uv2)) 1.0 1E-16)))
+    (approx= 1.0 (abs ($= (trans uv1) <*> uv2)) 1E-16)))
+
+(defn planar-dist
+  ([a b c d] (let [perp (cross-prod ($= b - a) ($= d - a))]
+               ($= (trans (unit-vec perp)) <*> (unit-vec ($= c - a)))))
+  ([x] (apply planar-dist x)))
+
+(defn planar-arc
+  ([a b c d] (* 180 (/ (Math/asin (planar-dist a b c d)) Math/PI)))
+  ([x] (apply planar-arc x)))
+
+(defn planar?
+  "Predicate that yields true if the quadrilateral a b c d is planar. False otherwise."
+  ([a b c d] (approx= 0.0 (planar-dist a b c d) 1E-8))
+  ([x] (apply planar? x)))
 
 (defn plane [a b c]
   (try
@@ -82,16 +107,19 @@
 ;; and compute their scalar product. if the sign
 ;; of the scalar product does not change, it's convex.
 ;; for 3d we will have to fix a plane first.
-(defn is-convex? [pts]
+(defn convex? [pts]
   (let [edges (map (fn [[a b]] ($= b - a)) (partition 2 1 [(first pts)] pts))
         plane ($= (skew-mat (first edges)) <*> (second edges))
         cons-edges (partition 2 1 [(first edges)] edges)]
     (reduce #(and % %2)
-            (map (fn [[a b]] (pos? ($= (trans plane) <*> (skew-mat a) <*> b))) cons-edges))))
+            (map (fn [[a b]] (pos? ($= (trans plane) <*> (cross-prod a b)))) cons-edges))))
+
+(defn is-convex? [pts]
+  (convex? pts))
 
 (defn quad-area [[a b c d]]
   (* 1/2
-     (norm ($= ( (skew-mat ($= c - a)) <*> ( d - b ))))))
+     (norm (cross-prod ($= c - a) ($= d - b )))))
 
 ;;------------------------------------------------------------------------------
 ;; line and plane intersections
@@ -116,20 +144,35 @@
       ($= off + t * dir))))
 
 (defn plane-plane-intersection [[a b c] [d e f]]
-  (try
-    (let [[g h i] ($= (skew-mat [a b c]) <*> [d e f]) ;; direction
+  (if-not (parrallel? [a b c] [d e f])
+    (let [[g h i] (cross-prod [a b c] [d e f]) ;; direction
           off (solve (matrix [[a b c]
                               [d e f]
                               [g h i]])
                      (matrix [-1 -1 0]))]
       ($= (skew-mat off) <*> ( off + [g h i] )))
-    (catch java.lang.IllegalArgumentException ex
-      (println (str "Cannot compute intersection of given planes with normal vectors: " [a b c] " and " [d e f] " (" (.getMessage ex) ")")))))
+    ;; else
+    (if (and (approx= a d 1E-15)
+             (approx= b e 1E-15)
+             (approx= c f 1E-15))
+      nil ;they are identical.
+      'impossible-configuration)))
+
+(defn impossible? [x]
+  (= 'impossible-configuration x))
 
 (defn parallel-plane-through-point [h p]
   (let [normal (unit-vec h)
         scale  ($= -1 * (trans normal) <*> p)]
     ($= normal / scale)))
+
+(defn project-onto-plane [p h]
+  (let [h (to-list h)
+        p (to-list p)
+        factor ($= (trans h) <*> p)]
+    (if (> (abs factor) 1e-17)
+      ($= ( -1 / factor ) * p)
+      ($= ( -1 / ( (trans h) <*> h) ) * h + p ))))
 
 (defn point-in-plane [p h]
   "Orhtogonal projectiong of point p in plane h"
