@@ -3,11 +3,11 @@
   (:use [geometry :only (add-vertex get-vertex add-edge remove-edge get-edges)])
   (:use [geometry.utils :only (centroid edges-for-vertex face-to-directed-edges edge quad-area polygon-length
                                         is-convex? parrallel? face-to-edges unit-vec skew-mat norm
-                                        plane line-plane-intersection line-through-points planar? planar-dist)])
+                                        plane line-plane-intersection line-through-points planar? planar-dist cross-prod)])
   (:use [geometry.renderer :only (render-geometry)])
   (:use [planar-dual :only (M)])
   (:use [clojure.contrib.generic.math-functions :only (approx=)])
-  (:use [incanter.core :only ($= trans)])
+  (:use [incanter.core :only ($= trans bind-columns)])
   (:use [clojure.contrib.duck-streams :only (with-out-writer)])
   (:use [planar.dual-solver :only (solve with-face)])
   (:use [clojure.string :only (join)]))
@@ -25,6 +25,8 @@
 ;; the weights for the vertex repositioning.
 (def *vertex-weight* 1/3)
 (def *centroid-weight* 2/3)
+(def INSERT-A 2/3)
+(def INSERT-B 1/3)
 
 (defn planar-subd-edge-points []
   {:vertices (set (reduce concat (geometry/get-edges)))
@@ -32,8 +34,8 @@
                   (for [[a b] (geometry/get-edges)]
                     (let [A (geometry/get-vertex a)
                           B (geometry/get-vertex b)
-                          a* (apply geometry/add-vertex ($= 2/3 * A + 1/3 * B))
-                          b* (apply geometry/add-vertex ($= 1/3 * A + 2/3 * B))]
+                          a* (apply geometry/add-vertex ($= INSERT-A * A + INSERT-B * B))
+                          b* (apply geometry/add-vertex ($= INSERT-B * A + INSERT-A * B))]
                       {`((~a ~b) ~a) a*
                        `((~a ~b) ~b) b*})))})
 
@@ -79,11 +81,40 @@
         point  (planar-subd-compute-plane-point-for-face struct face)]
     ($= ( -1 / ( (trans orient) <*> point ) ) * orient)))
 
+(defn planar-subd-compute-E-2 [struct face]
+  (let [[a b c d] face
+        a- (get (:ev->v struct) `(~(edge a b) ~a))
+        a+ (get (:ev->v struct) `(~(edge a b) ~b))
+        b- (get (:ev->v struct) `(~(edge b c) ~b))
+        b+ (get (:ev->v struct) `(~(edge b c) ~c))
+        c- (get (:ev->v struct) `(~(edge c d) ~c))
+        c+ (get (:ev->v struct) `(~(edge c d) ~d))
+        d- (get (:ev->v struct) `(~(edge d a) ~d))
+        d+ (get (:ev->v struct) `(~(edge d a) ~a))
+        orient (unit-vec (cross-prod
+                          ($= (geometry/get-vertex d-) - (geometry/get-vertex d+))
+                          ($= (geometry/get-vertex a+) - (geometry/get-vertex a-))))
+        point #_(planar-subd-compute-plane-point-for-face struct face)
+        (centroid (map geometry/get-vertex [a- a+ b- b+ c- c+ d- d+]))]
+    ($= ( -1 / ( (trans orient) <*> point ) ) * orient)))
+
 (defn planar-subd-face-boundary [struct face]
   (reduce concat
           (for [[a b] (face-to-directed-edges face)]
             (let [v->v  #(get (:ev->v struct) (list (edge a b) %))]
               (list a (v->v a) (v->v b))))))
+
+(defn planar-subd-offset [struct face]
+  (let [offset (geometry/get-offset)]
+    (geometry/reset-offset)
+    (let [[p1 p2 p3 p4 p5 p6
+           p7 p8 p9 p10 p11 p12] (doall (map geometry/get-vertex (planar-subd-face-boundary struct face)))
+           face-centroid (centroid p2 p3  p5 p6  p8 p9  p11 p12)
+           face-normal   (unit-vec (cross-prod ($= p12 - p11) ($= p3 - p2)))]
+                                        ;(prn face-centroid face-normal)
+      ;(geometry/add-vertex ($= face-centroid - face-normal))
+      (geometry/set-offset offset)
+      ($= face-centroid - face-normal))))
 
 (defn planar-subd-find-peaks [lst]
   (let [area-per-length (partition 2 (interleave lst (map #(* 10 (/ (quad-area %) (polygon-length %))) lst)))]
@@ -168,7 +199,17 @@
           (quality)))))
 
 (defn planar-solution? [[p1 p2 p3 p4 p5 p6 p7 p8 p9 p10 p11 p12] [q1 q2 q3 q4]]
-  #_(prn (map (juxt planar-dist planar?) [[p1 p2 q1 p12]
+  (let [ret (every? planar? [[p1 p2 q1 p12]
+                             [p2 p3 q2 q1]
+                             [p3 p4 p5 q2]
+                             [p12 q1 q4 p11]
+                             [q1 q2 q3 q4]
+                             [q2 p5 p6 q3]
+                             [p11 q4 p9 p10]
+                             [q4 q3 p8 p9]
+                             [p6 p7 p8 q3]])]
+    (if-not ret
+      (prn (map (juxt planar-dist planar?) [[p1 p2 q1 p12]
                                         [p2 p3 q2 q1]
                                         [p3 p4 p5 q2]
                                         [p12 q1 q4 p11]
@@ -176,16 +217,8 @@
                                         [q2 p5 p6 q3]
                                         [p11 q4 p9 p10]
                                         [q4 q3 p8 p9]
-                                        [q3 p6 p7 p8]]))
-  (every? planar? [[p1 p2 q1 p12]
-                   [p2 p3 q2 q1]
-                   [p3 p4 p5 q2]
-                   [p12 q1 q4 p11]
-                   [q1 q2 q3 q4]
-                   [q2 p5 p6 q3]
-                   [p11 q4 p9 p10]
-                   [q4 q3 p8 p9]
-                   [q3 p6 p7 p8]]))
+                                        [p6 p7 p8 q3]])))
+    ret))
 
 (defn planar-subd-add-points-and-faces [[p1 p2 p3 p4 p5 p6 p7 p8 p9 p10 p11 p12] points]
   ;; add new vertices
@@ -243,16 +276,24 @@
   (let [c (apply centroid (map geometry/get-vertex (planar-subd-face-boundary struct face)))
         dir (planar-subd-compute-plane-orientation-for-face struct face)]
     ;(prn ($= c + (2 * dir)))
-    ;(geometry/set-offset ($= c + ( 2 * dir )))
+    (geometry/set-offset (planar-subd-offset struct face))
     (let [E (planar-subd-compute-E struct face)
+          E2 (planar-subd-compute-E-2 struct face)
           boundary (planar-subd-face-boundary struct face)
           vboundary (map geometry/get-vertex boundary)]
       (render-geom-highlight-face boundary face)
       (with-face face
-        (if-let [sol (solve vboundary E)]
+        (println (format "Boundary: %s" (join "-" boundary)))
+        #_(prn (apply bind-columns vboundary))
+        (prn 'Offset (geometry/get-offset) 'E E)
+        (if-let [sol (or (solve vboundary E)
+                         (println "---- Second Choice! ----")
+                         (solve vboundary E2))]
           (if (planar-solution? vboundary sol)
-            (planar-subd-add-points-and-faces boundary sol)))))
-    ;(geometry/reset-offset)
+            (planar-subd-add-points-and-faces boundary sol)
+            (println "\n N O T   P L A N A R ! ! ! \n"))
+          (println "\n N O   S O L U T I O N ! ! ! \n"))))
+    (geometry/reset-offset)
     ))
 
 

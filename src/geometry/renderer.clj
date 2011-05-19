@@ -156,17 +156,23 @@
 
 
 
-(defn render-geometry [geom eye up near far & {:keys [magnify points edges faces]
-                                               :or {magnify 1.0
+(defn render-geometry [geom eye up near far & {:keys [magnify points edges faces parallel target offset]
+                                               :or {target nil
+                                                    magnify 1.0
                                                     points true
                                                     edges true
-                                                    faces true}}]
+                                                    faces true
+                                                    parallel false
+                                                    offset [0 0]}}]
   "No clipping is performed"
   (with-geometry geom
-    (let [target (centroid (vals (get-vertices)))
+    (let [target (or target (centroid (vals (get-vertices))))
           view-m ($= (scale-mat [magnify magnify 1.0]) <*> (view-matrix target eye up))
           n->xy  (fn [n] (let [v* ($= view-m <*> (cons 1 (get-vertex n)))]
-                          ($= (take 2 (rest v*)) / (-1 * (last v*)))))
+                          ($= offset +
+                              (if parallel
+                                (take 2 (rest v*))
+                                ($= (take 2 (rest v*)) / (-1 * (last v*)))))))
           n->depth (fn [n] (let [v*   ($= view-m <*> (cons 1 (get-vertex n)))
                                 z    ($= -1 * (last v*))
                                 dist (- far near)]

@@ -121,6 +121,12 @@
   (* 1/2
      (norm (cross-prod ($= c - a) ($= d - b )))))
 
+
+(defn solution-quality [solution]
+  (* 10 (/ (quad-area solution)
+           (polygon-length solution))))
+
+
 ;;------------------------------------------------------------------------------
 ;; line and plane intersections
 (defn line-through-points [a b]
@@ -138,9 +144,10 @@
     ($= x + scale * dx)))
 
 (defn line-plane-intersection [[off dir] p]
-  (if (< (abs ($= (trans dir) <*> p)) 1E-17)
+  (if (< (abs ($= (trans dir) <*> p)) 1E-14)
     (println "Cannot compute line-plane intersection. Line is parrallel to plane!")
     (let [t ($= ( -1 - (trans off) <*> p) / ( (trans dir) <*> p) )]
+      (prn "line-plane intersection: " (abs ($= (trans dir) <*> p)))
       ($= off + t * dir))))
 
 (defn plane-plane-intersection [[a b c] [d e f]]

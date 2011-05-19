@@ -171,7 +171,7 @@
 (declare poly-length)
 (declare quad-area)
 (declare test-qs)
-
+ 
 (defn planar-subd-graph-for-face [ps face]
   (binding [*test-e* (planar-subd-compute-E ps face)]
     (let [boundary (planar-subd-face-boundary ps face)

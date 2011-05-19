@@ -5,6 +5,7 @@
   (:require [geometry.shapes.doughnut :as doughnut])
   (:require [geometry.shapes.multi-doughnut :as mdoughnut])
   (:require [geometry.shapes.T :as T])
+  (:require [geometry.shapes.star :as star])
   (:use [geometry.subdivision.catmull-clark :only (catmull-clark-subd)])
   (:use [geometry.subdivision.doo-sabin :only (doo-sabin-subd)])
   (:use [geometry.subdivision.planar :only (planar-subd)])
@@ -28,13 +29,15 @@
   (let [tempf (t/temp-file "temp.tex")]
     (println (format "Will use file: %s." tempf))
     (let [files
-          (for [[algorithm aname] [[catmull-clark-subd 'catmull-clark-subd]
-                                   [doo-sabin-subd 'doo-sabin-subd]
+          (for [[algorithm aname] [;[catmull-clark-subd 'catmull-clark-subd]
+                                   ;[doo-sabin-subd 'doo-sabin-subd]
                                    [ planar-subd 'planar-subd]]
-                [shape sname]     [[(cube/create) 'cube]
-                                   [(doughnut/create) 'doughnut]
-                                   [(mdoughnut/create) 'mdoughnut]
-                                   [(T/create) 'T]]]
+                [shape sname]     [;[(cube/create) 'cube]
+                                   ;[(doughnut/create) 'doughnut]
+                                   ;[(mdoughnut/create) 'mdoughnut]
+                                   ;[(T/create) 'T]
+                                   [(star/create) 'star]
+                                   ]]
             (for [i (range 3)]
               (let [fname (str sname "." aname ".step-" i ".tikz")]
                 (do (if (> i 0) (g/with-geometry shape (algorithm))))
