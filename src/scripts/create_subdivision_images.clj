@@ -29,9 +29,10 @@
   (let [tempf (t/temp-file "temp.tex")]
     (println (format "Will use file: %s." tempf))
     (let [files
-          (for [[algorithm aname] [;[catmull-clark-subd 'catmull-clark-subd]
-                                   ;[doo-sabin-subd 'doo-sabin-subd]
-                                   [ planar-subd 'planar-subd]]
+          (for [[algorithm aname] [[catmull-clark-subd 'catmull-clark-subd]
+                                   [doo-sabin-subd 'doo-sabin-subd]
+                                   ;[ planar-subd 'planar-subd]
+                                   ]
                 [shape sname]     [;[(cube/create) 'cube]
                                    ;[(doughnut/create) 'doughnut]
                                    ;[(mdoughnut/create) 'mdoughnut]
